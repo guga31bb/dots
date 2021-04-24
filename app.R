@@ -52,7 +52,11 @@ ui <- navbarPage(
     
     title = 'Dots from 2018', id = 'x0',
 
-    tabPanel('Play list', DT::dataTableOutput('tbl')),
+    tabPanel(
+        'Play list', 
+        tags$p("Click on a play to see the dots"),
+        DT::dataTableOutput('tbl')
+        ),
     
     tabPanel(
         'Dots', 
