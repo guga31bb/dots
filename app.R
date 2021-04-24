@@ -8,6 +8,7 @@
 #
 
 library(shiny)
+library(shinyWidgets)
 library(tidyverse)
 library(DT)
 
@@ -37,14 +38,17 @@ coverages <- read_csv("data/coverages_2018.csv") %>%
 play_list <- nflfastr %>%
     left_join(gif_list, by = c("game_id", "play_id")) %>%
     left_join(coverages, by = c("game_id", "play_id")) %>%
-    filter(has_gif == 1) 
+    filter(has_gif == 1) %>%
+    mutate(filename = 
+            glue::glue("gifs/dots_{game_id}_{play_id}.gif")
+               )
 
 table <- play_list %>%
     select(
         nflfastr_id,
         posteam, defteam,
         qtr, yardline_100, down, ydstogo,
-        coverage, desc
+        coverage, desc, filename
     )
 
 # Define UI for application that draws a histogram
@@ -54,12 +58,79 @@ ui <- navbarPage(
 
     tabPanel(
         'Play list', 
+        
+        fluidRow(
+            column(4, align = "center",
+                   pickerInput(
+                       inputId = "posteam",
+                       label = "Offense team", 
+                       choices = unique(nflfastr$posteam),
+                       selected = unique(nflfastr$posteam),
+                       options = list(
+                           `actions-box` = TRUE), 
+                       multiple = TRUE
+                   )
+                   ),
+            column(4, align = "center",
+                   pickerInput(
+                       inputId = "defteam",
+                       label = "Defense team", 
+                       choices = unique(nflfastr$posteam),
+                       selected = unique(nflfastr$posteam),
+                       options = list(
+                           `actions-box` = TRUE), 
+                       multiple = TRUE
+                   )
+            ),
+            column(4, align = "center",
+                   pickerInput(
+                       inputId = "coverage",
+                       label = "Coverage", 
+                       choices = unique(coverages$coverage),
+                       selected = unique(coverages$coverage),
+                       options = list(
+                           `actions-box` = TRUE), 
+                       multiple = TRUE
+                   )
+            )
+        ),
+        
+        fluidRow(
+            column(12, align = "center",
+                   actionBttn(
+                       inputId = "update",
+                       label = "Apply filters",
+                       style = "jelly", 
+                       color = "danger"
+                   )
+            )
+
+        ),
+        
+        tags$br(),
+
+        
         tags$p("Click on a play to see the dots"),
         DT::dataTableOutput('tbl')
         ),
     
     tabPanel(
         'Dots', 
+        
+        actionBttn(
+            inputId = "click_b",
+            label = "Previous play",
+            style = "jelly", 
+            color = "danger"
+        ),
+        
+        actionBttn(
+            inputId = "click_f",
+            label = "Next play",
+            style = "jelly", 
+            color = "success"
+        ),
+        
         imageOutput("plot1")
         )
     
@@ -68,10 +139,21 @@ ui <- navbarPage(
 # Define server logic required to draw a histogram
 server <- function(input, output, session) {
     
-    value <- reactiveVal(1)
-
+    data <- eventReactive(
+        input$update, {
+            
+            table %>%
+                filter(
+                    posteam %in% input$posteam,
+                    defteam %in% input$defteam,
+                    coverage %in% input$coverage
+                )
+            
+        }, ignoreNULL = FALSE
+    )
+    
     output$tbl = renderDT(
-        table, 
+        data(), 
         extensions = c('FixedHeader'),
         
         options = list(
@@ -82,20 +164,26 @@ server <- function(input, output, session) {
             scrollX = TRUE,
             fixedHeader = TRUE,
             columnDefs = list(
-                list(width = '80px', targets = c(1, 2, 3, 4, 5, 6, 7))
+                list(width = '60px', targets = c(0, 1, 2, 3, 4, 5)),
+                list(visible=FALSE, targets=c(9))
                 )
-            
+
             ),
-        filter = list(position = "top"),
-        selection = list(mode = 'single' #, selected = 1
+        # filter = list(position = "top"),
+        selection = list(mode = 'single', selected = 1
                          ),
         
         # change column names
         colnames = c("ID", "Off", "Def", "QTR", "Yardline",
-                     "Down", "YTG", "Coverage", "Play"
+                     "Down", "YTG", "Coverage", "Play", "File"
         ),
         rownames = FALSE
     )
+    
+    # initialize value to keep track of row
+    value <- reactiveVal(1)
+    
+    DTproxy <- DT::dataTableProxy("tbl")
     
     observeEvent(input$tbl_cell_clicked, {
         info = input$tbl_cell_clicked
@@ -103,6 +191,34 @@ server <- function(input, output, session) {
         if (is.null(info$value)) return()
         updateTabsetPanel(session, 'x0', selected = 'Dots')
         value(info$row)
+    })
+    
+    # forward button clicked
+    observeEvent(input$click_f, {
+        row_count <- input$tbl_rows_selected
+        
+        DT::selectRows(
+            DTproxy,
+            row_count + 1
+            )
+        value(input$tbl_rows_selected + 1)
+    })
+    
+    # back button clicked
+    observeEvent(input$click_b, {
+
+        row_count <- input$tbl_rows_selected
+        
+        if (row_count == 1) return()
+        
+        DT::selectRows(
+            DTproxy,
+            row_count - 1
+        )
+        
+        value(input$tbl_rows_selected - 1)
+        
+        
     })
     
     output$plot1 <- renderImage({
@@ -113,9 +229,9 @@ server <- function(input, output, session) {
         # A temp file to save the output.
         # This file will be removed later by renderImage
         
-        play <- play_list %>% dplyr::slice(value())
+        play <- data() %>% dplyr::slice(value())
         
-        file = glue::glue("gifs/dots_{play$game_id}_{play$play_id}.gif")
+        file = paste(play$filename)
 
         # Return a list containing the filename
         list(src = file,
