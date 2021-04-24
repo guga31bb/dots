@@ -161,6 +161,7 @@ server <- function(input, output, session) {
             pageLength = 30,
             # lengthChange = FALSE,
             dom = "tfp",
+            ordering = FALSE,
             scrollX = TRUE,
             fixedHeader = TRUE,
             columnDefs = list(
@@ -197,6 +198,9 @@ server <- function(input, output, session) {
     observeEvent(input$click_f, {
         row_count <- input$tbl_rows_selected
         
+        if (row_count == nrow(data())) return()
+        if (is.null(row_count)) row_count <- 1
+
         DT::selectRows(
             DTproxy,
             row_count + 1
@@ -209,6 +213,7 @@ server <- function(input, output, session) {
 
         row_count <- input$tbl_rows_selected
         
+        if (is.null(row_count)) row_count <- 1
         if (row_count == 1) return()
         
         DT::selectRows(
