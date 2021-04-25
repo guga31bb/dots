@@ -155,6 +155,12 @@ ui <- navbarPage(
         
         imageOutput("plot2", height = "90%", width = "90%")
         
+    ),
+    
+    tabPanel("About",
+             fluidRow(column(12, align="left",
+                             includeMarkdown("README.md")
+             ))
     )
     
 )
