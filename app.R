@@ -131,8 +131,31 @@ ui <- navbarPage(
             color = "success"
         ),
         
-        imageOutput("plot1")
-        )
+        imageOutput("plot1", height = "90%", width = "90%")
+        ),
+    tabPanel(
+        'Guessing game',
+        
+        actionBttn(
+            inputId = "update2",
+            label = "Another play",
+            style = "jelly", 
+            color = "success"
+        ),
+        
+        tags$br(),
+        
+        radioGroupButtons(
+            inputId = "coverage2",
+            label = "What is the coverage?", 
+            choices = c("None", unique(coverages$coverage))
+        ),
+        
+        textOutput("text"),
+        
+        imageOutput("plot2", height = "90%", width = "90%")
+        
+    )
     
 )
 
@@ -223,6 +246,22 @@ server <- function(input, output, session) {
         
         value(input$tbl_rows_selected - 1)
         
+    })
+    
+    rand_id <- reactiveVal(runif(1, min=1, max = nrow(table)) %>% floor())
+    
+    # new play button clicked
+    observeEvent(input$update2, {
+        
+        updateRadioGroupButtons(
+            session = session,
+            inputId = "coverage2",
+            selected = "None"
+        )
+        
+        val = runif(1, min=1, max = nrow(table)) %>% floor()
+
+        rand_id(val)
         
     })
     
@@ -245,6 +284,39 @@ server <- function(input, output, session) {
              height = height
              # alt = "This is alternate text"
         )}, deleteFile = FALSE)
+    
+    output$plot2 <- renderImage({
+        
+        width  <- session$clientData$output_plot2_width
+        height <- (9/18) * width
+        
+        # A temp file to save the output.
+        # This file will be removed later by renderImage
+        
+        play <- table %>% dplyr::slice(rand_id())
+        
+        file = paste(play$filename)
+        
+        # Return a list containing the filename
+        list(src = file,
+             contentType = 'image/gif',
+             width = width,
+             height = height
+             # alt = "This is alternate text"
+        )}, deleteFile = FALSE)
+    
+
+    output$text <- renderText({
+        cvg <- table %>% dplyr::slice(rand_id()) %>% pull(coverage)
+        if (input$coverage2 == "None") {
+            return("Please take a guess")
+        } else if (input$coverage2 == cvg) {
+            return("Correct!")
+        } else {
+            return("Try again! Back to the film room for you!")
+        }
+
+    })
 
 }
 
