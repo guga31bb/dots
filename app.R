@@ -311,7 +311,7 @@ server <- function(input, output, session) {
         if (input$coverage2 == "None") {
             return("Please take a guess")
         } else if (input$coverage2 == cvg) {
-            return("Correct!")
+            return("PFF thinks you are correct!")
         } else {
             return("Try again! Back to the film room for you!")
         }
