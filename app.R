@@ -12,8 +12,15 @@ library(shinyWidgets)
 library(tidyverse)
 library(DT)
 
+# check github for available files
+req <- "https://api.github.com/repos/guga31bb/dots-data/git/trees/master?recursive=1" %>%
+    httr::GET()
+    
+filelist <- unlist(lapply(httr::content(req)$tree, "[", "path"), use.names = F)
+files <- grep("data/", filelist, value = TRUE, fixed = TRUE)
+
 # load everything
-gif_list <- sub("\\..*", "", list.files("gifs/")) %>%
+gif_list <- sub("\\..*", "", files) %>%
     str_split_fixed("_", 3) %>%
     as_tibble(.name_repair = "universal") %>%
     set_names(c("dots", "game_id", "play_id")) %>%
@@ -35,12 +42,14 @@ coverages <- read_csv("data/coverages_2018.csv") %>%
         TRUE ~ coverage
     ))
 
+stub <- "https://raw.githubusercontent.com/guga31bb/dots-data/master/data/dots"
+
 play_list <- nflfastr %>%
     left_join(gif_list, by = c("game_id", "play_id")) %>%
     left_join(coverages, by = c("game_id", "play_id")) %>%
     filter(has_gif == 1) %>%
     mutate(filename = 
-            glue::glue("gifs/dots_{game_id}_{play_id}.gif")
+            glue::glue("{stub}_{game_id}_{play_id}.gif")
                )
 
 table <- play_list %>%
@@ -116,22 +125,34 @@ ui <- navbarPage(
     
     tabPanel(
         'Dots', 
-        
-        actionBttn(
-            inputId = "click_b",
-            label = "Previous play",
-            style = "jelly", 
-            color = "danger"
+        fluidRow(
+          column(6, align = "right",
+                 actionBttn(
+                     inputId = "click_b",
+                     label = "Previous play",
+                     style = "jelly", 
+                     color = "danger"
+                 )
+            ),
+          
+          column(6, align = "left",
+                 actionBttn(
+                     inputId = "click_f",
+                     label = "Next play",
+                     style = "jelly", 
+                     color = "success"
+                )
+        )
         ),
         
-        actionBttn(
-            inputId = "click_f",
-            label = "Next play",
-            style = "jelly", 
-            color = "success"
-        ),
+        fluidRow(
+            column(12, align = "center",
+                   imageOutput("dummy", height = "90%", width = "90%"),
+                   uiOutput("plot1", height = "80%", width = "80%")
+                   )
+        )
         
-        imageOutput("plot1", height = "90%", width = "90%")
+        
         ),
     tabPanel(
         'Guessing game',
@@ -227,9 +248,21 @@ server <- function(input, output, session) {
     observeEvent(input$click_f, {
         row_count <- input$tbl_rows_selected
         
+        # if nothing is already selected, make everything 2
+        if (is.null(row_count)) {
+            row_count <- 2
+            DT::selectRows(
+                DTproxy,
+                2
+            )
+            value(2)
+            return()
+        }
+        
+        # if already at the max, don't do anything
         if (row_count == nrow(data())) return()
-        if (is.null(row_count)) row_count <- 1
 
+        # otherwise increment 1
         DT::selectRows(
             DTproxy,
             row_count + 1
@@ -242,9 +275,21 @@ server <- function(input, output, session) {
 
         row_count <- input$tbl_rows_selected
         
-        if (is.null(row_count)) row_count <- 1
+        # if nothing is already selected, make everything 1
+        if (is.null(row_count)) {
+            row_count <- 1
+            DT::selectRows(
+                DTproxy,
+                1
+            )
+            value(1)
+            return()
+        }
+        
+        # if already at the min, don't do anything
         if (row_count == 1) return()
         
+        # otherwise, move back 1
         DT::selectRows(
             DTproxy,
             row_count - 1
@@ -271,25 +316,40 @@ server <- function(input, output, session) {
         
     })
     
-    output$plot1 <- renderImage({
+    # an extremely stupid way of figuring out the right widow size
+    # for the gif below
+    output$dummy <- renderImage({
         
-        width  <- session$clientData$output_plot1_width
-        height <- (9/18) * width
+        # A temp file to save the output.
+        # This file will be removed later by renderImage
+        
+        play <- table %>% dplyr::slice(rand_id())
+        
+        file = paste(play$filename)
+        
+        # Return a list containing the filename
+        list(src = "gifs/dots_2018090600_75.gif",
+             contentType = 'image/gif',
+             width = 1,
+             height = 1
+             # alt = "This is alternate text"
+        )}, deleteFile = FALSE)
+    
+    
+    
+    output$plot1 <- renderUI({
+        
+        w  <- session$clientData$output_dummy_width
+        h <- (9/18) * w
         
         # A temp file to save the output.
         # This file will be removed later by renderImage
         
         play <- data() %>% dplyr::slice(value())
+        file <- paste(play$filename)
         
-        file = paste(play$filename)
-
-        # Return a list containing the filename
-        list(src = file,
-             contentType = 'image/gif',
-             width = width,
-             height = height
-             # alt = "This is alternate text"
-        )}, deleteFile = FALSE)
+        tags$img(src = file, height = h, width = w)
+    })
     
     output$plot2 <- renderImage({
         
