@@ -316,9 +316,13 @@ server <- function(input, output, session) {
     rand_id <- reactiveVal(runif(1, min=1, max = nrow(coverage_game)) %>% floor())
     
     streak <- reactiveVal(0)
+    has_guessed <- reactiveVal(0)
     
     # new play button clicked: get new random play
     observeEvent(input$update2, {
+        
+        # reset guess to 0 for new play
+        has_guessed(0)
         
         # if user didn't make a guess, reset streak to 0
         if (input$coverage2 == "None") {
@@ -344,10 +348,14 @@ server <- function(input, output, session) {
             
             label <- coverage_game %>% dplyr::slice(rand_id()) %>% pull(coverage)
             
-            if (input$coverage2 == label) {
+            if (input$coverage2 == label & has_guessed() == 0) {
                 streak(streak() + 1)
+                has_guessed(1)
             } else if (input$coverage2 == "None") return()
-            else streak(0)
+            else {
+                has_guessed(1)
+                streak(0)
+            }
             
         }
         )
