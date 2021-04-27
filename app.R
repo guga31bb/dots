@@ -168,25 +168,54 @@ ui <- navbarPage(
     tabPanel(
         'Guessing game',
         
-        actionBttn(
-            inputId = "update2",
-            label = "Another play",
-            style = "jelly", 
-            color = "success"
-        ),
+        fluidRow(
+            column(10, align = "center",
+                   actionBttn(
+                       inputId = "update2",
+                       label = "Another play",
+                       style = "jelly", 
+                       color = "success"
+                   )
+                   ),
+            
+            # streak
+            column(2, align = "left",
+                   textOutput("text2"),
+                   tags$head(tags$style("#text2{color: red;
+                                 font-size: 20px;
+                                 font-style: italic;
+                                 }"
+                   )
+                   )
+            )
+            
+        ) ,
         
         tags$br(),
-        tags$br(),
-        
-        radioGroupButtons(
-            inputId = "coverage2",
-            label = "What is the coverage?", 
-            choices = c("None", unique(coverage_game$coverage))
+
+        fluidRow(
+            column(10, align = "center",
+                   # coverage picker
+                   radioGroupButtons(
+                       inputId = "coverage2",
+                       label = "What is the coverage?", 
+                       choices = c("None", unique(coverage_game$coverage))
+                   )
+                   ),
+            column(2, align = "left",
+                imageOutput("level_pic", height = "80%")
+            )
+            ),
+        fluidRow(
+            column(10, align = "center",
+                   # tells you whether it's the right answer
+                   textOutput("text")
+                   )
         ),
-        
-        textOutput("text"),
-        textOutput("text2"),
+
+        # the gif
         uiOutput("plot2", height = "80%", width = "80%"),
+        # the thing to get width
         imageOutput("dummy2", height = "90%", width = "90%")
         
     ),
@@ -315,9 +344,10 @@ server <- function(input, output, session) {
     # initialize random play
     rand_id <- reactiveVal(runif(1, min=1, max = nrow(coverage_game)) %>% floor())
     
+    # for tracking user streak
     streak <- reactiveVal(0)
     has_guessed <- reactiveVal(0)
-    
+
     # new play button clicked: get new random play
     observeEvent(input$update2, {
         
@@ -435,8 +465,23 @@ server <- function(input, output, session) {
     })
     
     output$text2 <- renderText({
-        glue::glue("Current streak: {streak()}")
+        
+        level <- floor(streak() / 3)
+        
+        glue::glue("Current streak: {streak()} (level: {level})")
     })
+    
+    output$level_pic <- renderImage({
+        level <- floor(streak() / 3)
+        file <- glue::glue("gifs/pic{level}.png")
+        
+        tmp <<- file
+        
+        list(src = file,
+             alt = "This is alternate text",
+             height = 50
+        )
+    }, deleteFile = FALSE)
 
 }
 
